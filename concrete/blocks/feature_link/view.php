@@ -7,14 +7,14 @@ $buttonColor = $buttonColor ?? null;
 
 if (isset($button)) {
 
-    if ($buttonStyle == 'outline') {
+    if (isset($buttonColor) && $buttonStyle == 'outline') {
         $button->addClass('btn btn-outline-' . $buttonColor) ;
     } elseif ($buttonStyle == 'link') {
         $button->addClass('btn btn-link');
-    } else {
+    } else if(isset($buttonColor)) {
         $button->addClass('btn btn-' . $buttonColor) ;
     }
-    if ($buttonSize) {
+    if (isset($buttonSize)) {
         $button->addClass('btn-' . $buttonSize);
     }
     if ($buttonIcon && $button->getValue()) {

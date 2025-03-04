@@ -417,6 +417,7 @@ class Controller extends BlockController implements NotificationProviderInterfac
 
         // Make sure our data goes through correctly.
         $data['storeFormSubmission'] = isset($data['storeFormSubmission']) ?: 0;
+        $data['redirectCID'] = isset($data['redirectCID']) && intval($data['redirectCID']) > 0 ?: 0;
 
         // Now, let's handle saving the form entity ID against the form block db record
         $entity = false;

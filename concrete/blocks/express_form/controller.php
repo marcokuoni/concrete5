@@ -416,7 +416,7 @@ class Controller extends BlockController implements NotificationProviderInterfac
         $entityManager = $this->app->make(EntityManagerInterface::class);
 
         // Make sure our data goes through correctly.
-        $data['storeFormSubmission'] = isset($data['storeFormSubmission']) ?: 0;
+        $data['storeFormSubmission'] = !empty($data['storeFormSubmission']) ? 1 : 0;
         $data['notifyMeOnSubmission'] = !empty($data['notifyMeOnSubmission']) ? 1 : 0;
         $data['redirectCID'] = isset($data['redirectCID']) && intval($data['redirectCID']) > 0 ?: 0;
 

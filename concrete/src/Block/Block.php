@@ -406,7 +406,7 @@ EOT
         return $this->bFilename;
     }
 
-    public function setTempFilename(string $bFilename = null): void
+    public function setTempFilename(?string $bFilename = null): void
     {
         $this->bFilename = $bFilename;
 
@@ -943,33 +943,11 @@ EOT
      */
     public function getCustomStyleSetID()
     {
-        /** @var Connection $db */
-        $db = app(Connection::class);
         if (!isset($this->issID)) {
-            $co = $this->getBlockCollectionObject();
-
-            $arHandle = $this->getAreaHandle();
-            if ($arHandle && is_object($co)) {
-                $a = $this->getBlockAreaObject();
-                if ($a->isGlobalArea()) {
-                    // then we need to check against the global area name. We currently have the wrong area handle passed in
-                    $arHandle = STACKS_AREA_NAME;
-                }
-
-                $v = [
-                    $co->getCollectionID(),
-                    $co->getVersionID(),
-                    $arHandle,
-                    $this->getBlockID(),
-                ];
-
-                $this->issID = (int) $db->fetchOne(
-                    'select issID from CollectionVersionBlockStyles where cID = ? and cvID = ? and arHandle = ? and bID = ?',
-                    $v
-                );
-            } else {
-                $this->issID = 0;
-            }
+            /** @var \Concrete\Core\Block\CustomStyleRepository $customStyleRepository */
+            $customStyleRepository = app(CustomStyleRepository::class);
+            $issID = $customStyleRepository->getBlockStyleID($this);
+            $this->issID = $issID ?: 0;
         }
 
         return $this->issID;
@@ -1921,7 +1899,7 @@ EOT
      * @param \Concrete\Core\Page\Collection\Collection $c The collection to add the block alias to
      * @param int|null $displayOrder The number to display this block at. (optional)
      */
-    public function alias($c, int $displayOrder = null)
+    public function alias($c, ?int $displayOrder = null)
     {
         $app = Application::getFacadeApplication();
         /** @var Cloner $cloner */

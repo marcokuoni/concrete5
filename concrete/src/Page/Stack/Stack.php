@@ -3,6 +3,8 @@ namespace Concrete\Core\Page\Stack;
 
 use Concrete\Core\Area\Area;
 use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Page\Cloner;
+use Concrete\Core\Page\ClonerOptions;
 use Concrete\Core\Page\Collection\Collection;
 use Concrete\Core\Page\Stack\Folder\Folder;
 use Concrete\Core\Permission\Checker;
@@ -100,7 +102,7 @@ class Stack extends Page
      *
      * @return bool|\Concrete\Core\Page\Page
      */
-    public static function getByPath($path, $version = 'RECENT', TreeInterface $siteTree = null)
+    public static function getByPath($path, $version = 'RECENT', ?TreeInterface $siteTree = null)
     {
         $c = parent::getByPath(STACKS_PAGE_PATH . '/' . trim($path, '/'), $version, $siteTree);
         if (static::isValidStack($c)) {
@@ -133,7 +135,7 @@ class Stack extends Page
      *
      * @return self|false|null
      */
-    public static function getByName($stackName, $cvID = 'RECENT', TreeInterface $site = null, $multilingualContentSource = self::MULTILINGUAL_CONTENT_SOURCE_CURRENT)
+    public static function getByName($stackName, $cvID = 'RECENT', ?TreeInterface $site = null, $multilingualContentSource = self::MULTILINGUAL_CONTENT_SOURCE_CURRENT)
     {
         $c = Page::getCurrentPage();
         if (is_object($c) && (!$c->isError())) {
@@ -284,7 +286,7 @@ class Stack extends Page
      *
      * @return self|false
      */
-    public static function addStack($stack, Folder $folder = null)
+    public static function addStack($stack, ?Folder $folder = null)
     {
         $parent = \Page::getByPath(STACKS_PAGE_PATH);
         if ($folder) {
@@ -524,10 +526,11 @@ class Stack extends Page
 
     /**
      * @param \Concrete\Core\Multilingual\Page\Section\Section $section
+     * @param array{copyContents: bool = true} $options 
      *
      * @return self
      */
-    public function addLocalizedStack(Section $section)
+    public function addLocalizedStack(Section $section, array $options = [])
     {
         $neutralStack = $this->getNeutralStack();
         if ($neutralStack === null) {
@@ -535,7 +538,12 @@ class Stack extends Page
         }
         $name = $neutralStack->getCollectionName();
         $neutralStackPage = Page::getByID($neutralStack->getCollectionID());
-        $localizedStackPage = $neutralStackPage->duplicate($neutralStackPage);
+        $cloner = app(Cloner::class);
+        $clonerOptions = app(ClonerOptions::class);
+        $clonerOptions
+            ->setCopyContents($options['copyContents'] ?? true)
+        ;
+        $localizedStackPage = $cloner->clonePage($neutralStackPage, $clonerOptions, $neutralStackPage);
         $localizedStackPage->update([
             'cName' => $name,
         ]);

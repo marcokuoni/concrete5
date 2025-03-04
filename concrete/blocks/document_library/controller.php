@@ -26,6 +26,7 @@ use Concrete\Core\Url\UrlImmutable;
 use Concrete\Core\User\User;
 use Doctrine\DBAL\Connection;
 use FileAttributeKey;
+use League\Url\Url;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class Controller extends BlockController implements UsesFeatureInterface
@@ -584,7 +585,7 @@ class Controller extends BlockController implements UsesFeatureInterface
             $order = 'asc';
         }
 
-        $url = \URL::to($c);
+        $url = Url::createFromServer($_SERVER);
         if ($query = $url->getQuery()) {
             $query['sort'] = $key;
             $query['dir'] = $order;
@@ -750,9 +751,9 @@ class Controller extends BlockController implements UsesFeatureInterface
                     $file->getFileID(), t('Details'));
             case 'title':
                 if ($this->downloadFileMethod == 'force') {
-                    return sprintf('<a href="%s">%s</a>', $file->getForceDownloadURL(), $file->getTitle());
+                    return sprintf('<a href="%1$s" download="%2$s">%2$s</a>', $file->getForceDownloadURL(), h($file->getTitle()));
                 } else {
-                    return sprintf('<a href="%s">%s</a>', $file->getDownloadURL(), $file->getTitle());
+                    return sprintf('<a href="%1$s" download="%2$s">%2$s</a>', $file->getDownloadURL(), h($file->getTitle()));
                 }
             case 'filename':
                 return $file->getFileName();

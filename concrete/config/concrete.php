@@ -6,9 +6,9 @@ return [
      *
      * @var string
      */
-    'version' => '9.3.7',
-    'version_installed' => '9.3.7',
-    'version_db' => '20240910000000', // the key of the latest database migration
+    'version' => '9.4.0b1',
+    'version_installed' => '9.4.0b1',
+    'version_db' => '20241217194138', // the key of the latest database migration
 
     /*
      * Installation status
@@ -44,65 +44,11 @@ return [
      */
     'debug' => [
         /*
-         * Display errors
-         *
-         * @var bool
-         */
-        'display_errors' => true,
-
-        /*
-         * Site debug level
-         *
-         * @var string (message|debug)
-         */
-        'detail' => 'debug',
-
-        /*
          * Error reporting level
          *
          * @var int|null
          */
         'error_reporting' => null,
-
-        /**
-         * Hide specified superglobal keys and config items from whoops error output
-         *
-         * By default, all _SERVER, _ENV, and _COOKIE values are hidden
-         *
-         * @var array<string, string[]>
-         */
-        'hide_keys' => [
-            /** @var string[] */
-            '_GET' => [],
-
-            /** @var string[] */
-            '_POST' => [],
-
-            /** @var string[] */
-            '_FILES' => [],
-
-            /** @var string[] */
-            '_SESSION' => [],
-
-            /**
-             * Hide specified config keys from whoops error output
-             * `concrete.debug.display_errors` will hide that specific config item while `concrete.debug` will hide
-             * all items in the `concrete.debug` array.
-             *
-             * @var string[]
-             */
-            'config' => [
-                'concrete.proxy.password',
-                'concrete.mail.methods.smtp.password',
-                'concrete.email.default.address',
-                'concrete.email.form_block.address',
-                'concrete.email.forgot_password.address',
-                'concrete.email.validate_registration.address',
-                'concrete.email.workflow_notification.address',
-                'concrete.debug.hide_keys',
-                'app.api_keys',
-            ],
-        ],
     ],
 
     /*
@@ -505,6 +451,42 @@ return [
 
     /*
      * ------------------------------------------------------------------------
+     * Error handling settings
+     * ------------------------------------------------------------------------
+     */
+    'error' => [
+        'handling' => [
+            'error' => [
+                'halt' => true, // HAS to be true - no way to recover and not halt.
+                'logLevel' => 'EMERGENCY',
+            ],
+            'warning' => [
+                'halt' => false,
+                'logLevel' => 'WARNING',
+            ],
+            'notice' => [
+                'halt' => false,
+                'logLevel' => 'NOTICE',
+            ],
+            'deprecated' => [
+                'halt' => false, // HAS to be false - Symfony will not let us throw exceptions on deprecated errors.
+                'logLevel' => '', // by default let's not log these.
+            ],
+        ],
+        'display' => [
+            /*
+             * @var string (generic|message|debug)
+             */
+            'guests' => 'message',
+            /*
+             * @var string (generic|message|debug)
+             */
+            'privileged' => 'debug',
+        ]
+    ],
+
+    /*
+     * ------------------------------------------------------------------------
      * Logging settings
      * ------------------------------------------------------------------------
      */
@@ -515,13 +497,6 @@ return [
          * @var bool
          */
         'emails' => true,
-
-        /*
-         * Whether to log Errors
-         *
-         * @var bool
-         */
-        'errors' => true,
 
         /*
          * Whether to log Spam
@@ -538,6 +513,16 @@ return [
         'api' => false,
 
         'enable_dashboard_report' => true,
+
+        'boards' => [
+
+            /*
+             * Whether to log Board instance generation (note, this is handled by a custom, separate log mechanism)
+             *
+             * @var bool
+             */
+            'instances' => true,
+        ],
 
         'configuration' => [
             /*

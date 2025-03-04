@@ -118,9 +118,10 @@ return [
         'core_announcement' => '\Concrete\Core\Announcement\AnnouncementServiceProvider',
         'core_form' => '\Concrete\Core\Form\FormServiceProvider',
         'core_session' => '\Concrete\Core\Session\SessionServiceProvider',
+        'core_sharing' => '\Concrete\Core\Sharing\SharingServiceProvider',
         'core_cookie' => '\Concrete\Core\Cookie\CookieServiceProvider',
         'core_http' => '\Concrete\Core\Http\HttpServiceProvider',
-        'core_whoops' => '\Concrete\Core\Error\Provider\WhoopsServiceProvider',
+        'core_error' => '\Concrete\Core\Error\Provider\ErrorHandlingServiceProvider',
         'core_element' => '\Concrete\Core\Filesystem\FilesystemServiceProvider',
         'core_notification' => '\Concrete\Core\Notification\NotificationServiceProvider',
         'core_mercure' => '\Concrete\Core\Notification\Events\MercureServiceProvider',
@@ -136,6 +137,8 @@ return [
         'core_summary' => '\Concrete\Core\Summary\ServiceProvider',
         'core_boards' => '\Concrete\Core\Board\ServiceProvider',
         'core_page' => \Concrete\Core\Page\PageServiceProvider::class,
+        'core_block' => \Concrete\Core\Block\BlockServiceProvider::class,
+        'core_area' => \Concrete\Core\Area\AreaServiceProvider::class,
 
         // Authentication
         'core_oauth' => '\Concrete\Core\Authentication\Type\OAuth\ServiceProvider',
@@ -643,6 +646,7 @@ return [
                 ['javascript', 'ckeditor'],
                 ['javascript', 'ckeditor/concrete'],
                 ['css', 'ckeditor/concrete'],
+                ['javascript-localized', 'core/cms'],
             ],
         ],
         'ace' => [

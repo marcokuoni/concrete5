@@ -88,7 +88,7 @@ class PageList extends DatabaseItemList implements PagerProviderInterface, Pagin
      */
     protected $includeInactivePages = false;
 
-    public function __construct(StickyRequest $req = null)
+    public function __construct(?StickyRequest $req = null)
     {
         $u = Application::getFacadeApplication()->make(User::class);
         if ($u->isSuperUser()) {
@@ -138,7 +138,7 @@ class PageList extends DatabaseItemList implements PagerProviderInterface, Pagin
         $this->includeSystemPages = true;
     }
 
-    public function setPermissionsChecker(\Closure $checker = null)
+    public function setPermissionsChecker(?\Closure $checker = null)
     {
         $this->permissionsChecker = $checker;
     }
@@ -301,7 +301,7 @@ class PageList extends DatabaseItemList implements PagerProviderInterface, Pagin
 
     public function getTotalResults()
     {
-        if ($this->permissionsChecker === -1) {
+        if (isset($this->permissionsChecker) && $this->permissionsChecker === -1) {
             $query = $this->deliverQueryObject();
             // We need to reset the potential custom order by here because otherwise, if we've added
             // items to the select parts, and we're ordering by them, we get a SQL error
@@ -331,21 +331,22 @@ class PageList extends DatabaseItemList implements PagerProviderInterface, Pagin
      */
     public function getResult($queryRow)
     {
+        $permissionsDisabled = isset($this->permissionsChecker) && $this->permissionsChecker === -1;
         $c = Page::getByID($queryRow['cID']);
         if (is_object($c) && $this->checkPermissions($c)) {
             if ($this->pageVersionToRetrieve == self::PAGE_VERSION_RECENT) {
                 $cp = new \Permissions($c);
-                if ($cp->canViewPageVersions() || $this->permissionsChecker === -1) {
+                if ($cp->canViewPageVersions() || $permissionsDisabled) {
                     $c->loadVersionObject('RECENT');
                 }
             } elseif ($this->pageVersionToRetrieve == self::PAGE_VERSION_SCHEDULED) {
                 $cp = new \Permissions($c);
-                if ($cp->canViewPageVersions() || $this->permissionsChecker === -1) {
+                if ($cp->canViewPageVersions() || $permissionsDisabled) {
                     $c->loadVersionObject('SCHEDULED');
                 }
             } elseif ($this->pageVersionToRetrieve == self::PAGE_VERSION_RECENT_UNAPPROVED) {
                 $cp = new \Permissions($c);
-                if ($cp->canViewPageVersions() || $this->permissionsChecker === -1) {
+                if ($cp->canViewPageVersions() || $permissionsDisabled) {
                     $c->loadVersionObject('RECENT_UNAPPROVED');
                 }
             } else {
@@ -690,6 +691,12 @@ class PageList extends DatabaseItemList implements PagerProviderInterface, Pagin
             $this->query->expr()->in('p.cID', $query->getSQL())
         );
         $this->query->setParameter('containerID', $containerID);
+    }
+
+    public function filterByCacheSettings($value)
+    {
+        $this->query->andWhere('p.cCacheFullPageContent = :cacheSettings');
+        $this->query->setParameter('cacheSettings', $value);
     }
 
 

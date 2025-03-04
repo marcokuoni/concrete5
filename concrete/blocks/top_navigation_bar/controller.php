@@ -12,8 +12,10 @@ use Concrete\Core\File\File;
 use Concrete\Core\File\Tracker\FileTrackableInterface;
 use Concrete\Core\Html\Service\Navigation as NavigationService;
 use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Multilingual\Service\Detector;
 use Concrete\Core\Navigation\Breadcrumb\PageBreadcrumbFactory;
 use Concrete\Core\Navigation\Item\PageItem;
+use Concrete\Core\Navigation\Item\SwitchLanguageItem;
 use Concrete\Core\Navigation\Navigation;
 use Concrete\Core\Page\Page;
 use Concrete\Core\Permission\Checker;
@@ -78,6 +80,16 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
      */
     public $searchInputFormActionPageID;
 
+    /**
+     * @var bool|int|string|null
+     */
+    public $includeSwitchLanguage;
+
+    /**
+     * @var bool|int|string|null
+     */
+    public $ignorePermissions;
+
     public $helpers = ['form'];
 
     protected $btInterfaceWidth = 640;
@@ -89,6 +101,7 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
     protected $btCacheBlockOutputForRegisteredUsers = true;
     protected $btCacheBlockOutputLifetime = 300;
     protected $btExportFileColumns = ['brandingLogo', 'brandingTransparentLogo'];
+    protected $home;
 
     /**
      * {@inheritdoc}
@@ -119,7 +132,9 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
     public function add()
     {
         $site = $this->app->make('site')->getSite();
-        $brandingText = $site->getSiteName();
+        $brandingText = h($site->getSiteName());
+        /** @var Detector $detector */
+        $detector = $this->app->make('multilingual/detector');
 
         $this->set('includeTransparency', false);
         $this->set('includeStickyNav', false);
@@ -132,6 +147,8 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
         $this->set('brandingTransparentLogo', null);
         $this->set('searchInputFormActionPageID', null);
         $this->set('brandingText', $brandingText);
+        $this->set('includeSwitchLanguage', $detector->isEnabled());
+        $this->set('ignorePermissions', false);
         $this->edit();
     }
 
@@ -139,12 +156,15 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
     {
         $this->set('fileManager', new FileManager());
         $this->set('editor', $this->app->make('editor'));
+        /** @var Detector $detector */
+        $detector = $this->app->make('multilingual/detector');
+        $this->set('multilingualEnabled', $detector->isEnabled());
     }
 
     protected function includePageInNavigation(Page $page)
     {
         $checker = new Checker($page);
-        if ($checker->canViewPage() && !$page->getAttribute('exclude_nav')) {
+        if (($checker->canViewPage() || $this->ignorePermissions) && !$page->getAttribute('exclude_nav')) {
             return true;
         }
         return false;
@@ -178,37 +198,44 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
 
     protected function getHomePage(): Page
     {
-        $section = Section::getByLocale(\Localization::getInstance()->getLocale());
-        if ($section instanceof Section) {
-            $home = \Page::getByID($section->getSiteHomePageID());
-        } else {
-            $site = $this->app->make('site')->getSite();
-            $home = $site->getSiteHomePageObject();
+        if ($this->home === null) {
+            $section = Section::getByLocale(\Localization::getInstance()->getLocale());
+            if ($section instanceof Section) {
+                $home = \Page::getByID($section->getSiteHomePageID());
+            } else {
+                $site = $this->app->make('site')->getSite();
+                $home = $site->getSiteHomePageObject();
+            }
+            $this->home = $home;
         }
-        return $home;
+
+        return $this->home;
     }
 
     protected function getNavigation(): Navigation
     {
-        $home = $this->getHomePage();
-        $children = $home->getCollectionChildren();
-        $navigation = new Navigation();
+        $navigation = $this->app->make(Navigation::class);
+        if (!$this->includeNavigation) {
+            return $navigation;
+        }
 
+        $home = $this->getHomePage();
+        $children = $home->getCollectionChildren('ACTIVE');
         $current = Page::getCurrentPage();
         $parentIDs = $this->getParentIDsToCurrent();
 
         foreach ($children as $child) {
             if ($this->includePageInNavigation($child)) {
-                $item = new PageItem($child);
+                $item = $this->app->make(PageItem::class, ['page' => $child]);
                 if ($home->getCollectionID() !== $current->getCollectionID() && in_array($child->getCollectionID(), $parentIDs)) {
                     $item->setIsActiveParent(true);
                 }
                 $item->setIsActive($current->getCollectionID() === $child->getCollectionID());
                 if ($this->includeSubPagesInNavigation($child)) {
-                    $dropdownChildren = $child->getCollectionChildren();
+                    $dropdownChildren = $child->getCollectionChildren('ACTIVE');
                     foreach ($dropdownChildren as $dropdownChild) {
                         if ($this->includePageInNavigation($dropdownChild)) {
-                            $dropdownChildItem = new PageItem($dropdownChild);
+                            $dropdownChildItem = $this->app->make(PageItem::class, ['page' => $dropdownChild]);
                             if (in_array($dropdownChild->getCollectionID(), $parentIDs)) {
                                 $dropdownChildItem->setIsActiveParent(true);
                             }
@@ -237,7 +264,7 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
         }
         if ($this->includeBrandText && !$this->brandingText) {
             $site = $this->app->make('site')->getSite();
-            $brandingText = $site->getSiteName();
+            $brandingText = h($site->getSiteName());
             $this->set('brandingText', $brandingText);
         }
         if ($this->brandingTransparentLogo) {
@@ -257,6 +284,22 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
             }
             $this->set('searchAction', $searchAction);
         }
+        if ($this->includeSwitchLanguage) {
+            $c = Page::getCurrentPage();
+            /** @var Detector $detector */
+            $detector = $this->app->make('multilingual/detector');
+            $activeSection = $detector->getActiveSection($c);
+            $sections = $detector->getAvailableSections();
+            $languages = [];
+            foreach ($sections as $section) {
+                $pc = new Checker($section);
+                if ($pc->canRead()) {
+                    $isActive = $activeSection && $activeSection->getCollectionID() === $section->getCollectionID();
+                    $languages[] = new SwitchLanguageItem($section, $detector->getSwitchLink($c->getCollectionID(), $section->getCollectionID()), $isActive);
+                }
+            }
+            $this->set('languages', $languages);
+        }
     }
 
     public function save($args)
@@ -267,6 +310,8 @@ class Controller extends BlockController implements UsesFeatureInterface, FileTr
         $data['includeTransparency'] = !empty($args['includeTransparency']) ? 1 : 0;
         $data['includeSearchInput'] = !empty($args['includeSearchInput']) ? 1 : 0;
         $data['includeStickyNav'] = !empty($args['includeStickyNav']) ? 1 : 0;
+        $data['includeSwitchLanguage'] = !empty($args['includeSwitchLanguage']) ? 1 : 0;
+        $data['ignorePermissions'] = !empty($args['ignorePermissions']) ? 1 : 0;
 
         $data['includeBrandLogo'] = 0;
         $data['includeBrandText'] = 0;

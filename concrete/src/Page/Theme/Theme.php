@@ -942,10 +942,6 @@ class Theme extends ConcreteObject implements \JsonSerializable
             $documentationList->setSiteTreeToAll();
             $documentationList->includeSystemPages();
             $documentationList->filterByPath($parentPage->getCollectionPath());
-            $documentationList->filterByPageTypeHandle([
-                THEME_DOCUMENTATION_PAGE_TYPE,
-                THEME_DOCUMENTATION_CATEGORY_PAGE_TYPE]
-            );
             $documentationList->sortByDisplayOrder();
             $themeDocumentationPages = $documentationList->getResults();
             return $themeDocumentationPages;
@@ -1225,7 +1221,7 @@ class Theme extends ConcreteObject implements \JsonSerializable
      *
      * @param \Concrete\Core\Entity\Site\Site|null $site if null, we'll use the current site.
      */
-    public function applyToSite(Site $site = null)
+    public function applyToSite(?Site $site = null)
     {
         if (!is_object($site)) {
             $site = \Core::make('site')->getSite();

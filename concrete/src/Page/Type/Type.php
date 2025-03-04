@@ -35,6 +35,7 @@ use Concrete\Core\Page\Type\PublishTarget\Type\Type as PageTypePublishTargetType
 use Concrete\Core\Page\Type\Composer\FormLayoutSetControl as PageTypeComposerFormLayoutSetControl;
 use Concrete\Core\Page\Collection\Version\VersionList;
 use Concrete\Core\Page\Type\Composer\Control\CorePageProperty\CorePageProperty as CorePagePropertyPageTypeComposerControl;
+use Concrete\Core\Utility\Service\Xml;
 
 class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInterface, AssignableObjectInterface
 {
@@ -203,11 +204,15 @@ class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInt
             $c->move($parent);
             $db = \Database::connection();
             $db->executeQuery('update Pages set cIsDraft = 0 where cID = ?', [$c->getCollectionID()]);
-            if (!$parent->overrideTemplatePermissions()) {
-                // that means the permissions of pages added beneath here inherit from page type permissions
-                // this is a very poorly named method. Template actually used to mean Type.
-                // so this means we need to set the permissions of this current page to inherit from page types.
+            if (!$parent->overrideTemplatePermissions() && $c->getCollectionInheritance() === 'PARENT') {
+                // When the parent page's subpage permissions setting is "inherit page type default permissions",
+                // the permissions of this page should inherit from the default.
+                // overrideTemplatePermissions() is a very poorly named method. Template actually used to mean Type.
                 $c->inheritPermissionsFromDefaults();
+            } elseif ($parent->overrideTemplatePermissions() && $c->getCollectionInheritance() === 'TEMPLATE') {
+                // When the parent page's subpage permissions setting is "inherit from parent",
+                // off course the permissions of this page should inherit from the parent.
+                $c->inheritPermissionsFromParent();
             }
             $c->activate();
         } else {
@@ -280,7 +285,7 @@ class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInt
         }
     }
 
-    public function getPageTypePageTemplateDefaultPageObject(\Concrete\Core\Entity\Page\Template $template = null)
+    public function getPageTypePageTemplateDefaultPageObject(?\Concrete\Core\Entity\Page\Template $template = null)
     {
         if (!$template) {
             $template = $this->getPageTypeDefaultPageTemplateObject();
@@ -389,6 +394,7 @@ class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInt
 
     public static function import($node)
     {
+        $xml = app(Xml::class);
         $types = array();
         if ((string) $node->pagetemplates['type'] == 'custom' || (string) $node->pagetemplates['type'] == 'except') {
             if ((string) $node->pagetemplates['type'] == 'custom') {
@@ -433,20 +439,11 @@ class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInt
             $data['allowedTemplates'] = $ptAllowedPageTemplates;
         }
 
-        $data['internal'] = 0;
-        if ($node['internal'] == '1') {
-            $data['internal'] = 1;
-        }
+        $data['internal'] = $xml->getBool($node['internal']) ? 1 : 0;
 
-        $data['ptLaunchInComposer'] = 0;
-        if ($node['launch-in-composer'] == '1') {
-            $data['ptLaunchInComposer'] = 1;
-        }
+        $data['ptLaunchInComposer'] = $xml->getBool($node['launch-in-composer']) ? 1 : 0;
 
-        $data['ptIsFrequentlyAdded'] = 0;
-        if ($node['is-frequently-added'] == '1') {
-            $data['ptIsFrequentlyAdded'] = 1;
-        }
+        $data['ptIsFrequentlyAdded'] = $xml->getBool($node['is-frequently-added']) ? 1 : 0;
 
         $data['templates'] = $types;
         $pkg = false;
@@ -469,16 +466,11 @@ class Type extends ConcreteObject implements \Concrete\Core\Permission\ObjectInt
                         $controltype = PageTypeComposerControlType::getByHandle((string) $controlnode['type']);
                         $control = $controltype->configureFromImportHandle((string) $controlnode['handle']);
                         $setcontrol = $control->addToPageTypeComposerFormLayoutSet($set, true);
-                        $required = (string) $controlnode['required'];
                         $customTemplate = (string) $controlnode['custom-template'];
                         $label = (string) $controlnode['custom-label'];
                         $description = (string) $controlnode['description'];
                         $outputControlID = (string) $controlnode['output-control-id'];
-                        if ($required == '1') {
-                            $setcontrol->updateFormLayoutSetControlRequired(true);
-                        } else {
-                            $setcontrol->updateFormLayoutSetControlRequired(false);
-                        }
+                        $setcontrol->updateFormLayoutSetControlRequired($xml->getBool($controlnode['required']));
                         if ($customTemplate) {
                             $setcontrol->updateFormLayoutSetControlCustomTemplate($customTemplate);
                         }

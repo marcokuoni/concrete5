@@ -13,6 +13,7 @@ use Concrete\Core\Page\Type\Type;
 use Concrete\Core\Permission\Checker;
 use Concrete\Core\Statistics\UsageTracker\AggregateTracker;
 use Concrete\Core\StyleCustomizer\Inline\StyleSet;
+use Concrete\Core\Utility\Service\Xml;
 use Config;
 use Database;
 use Events;
@@ -131,7 +132,7 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
      *
      * @return mixed boolean or object having ->result (boolean) and ->message (string) properties
      */
-    public function install($path)
+    public function install($path, string $importMode = ContentImporter::IMPORT_MODE_UPGRADE)
     {
         // passed path is the path to this block (try saying that ten times fast)
         // create the necessary table
@@ -142,7 +143,7 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
 
             return $r;
         }
-        $ret = Package::installDB($path . '/' . FILENAME_BLOCK_DB);
+        $ret = Package::installDB($path . '/' . FILENAME_BLOCK_DB, $importMode);
 
         return $ret;
     }
@@ -365,12 +366,14 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
 
     public function export(\SimpleXMLElement $blockNode)
     {
-        $tables[] = $this->getBlockTypeDatabaseTable();
         if (isset($this->btExportTables)) {
             $tables = $this->btExportTables;
+        } else {
+            $tables = [$this->getBlockTypeDatabaseTable()];
         }
         $db = Database::connection();
 
+        $xml = $this->app->make(Xml::class);
         foreach ($tables as $tbl) {
             if (!$tbl) {
                 continue;
@@ -396,10 +399,7 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
                         } elseif (in_array($key, $this->btExportFileFolderColumns)) {
                             $tableRecord->addChild($key, ContentExporter::replaceFileFolderWithPlaceHolder($value));
                         } else {
-                            $cnode = $tableRecord->addChild($key);
-                            $node = dom_import_simplexml($cnode);
-                            $no = $node->ownerDocument;
-                            $node->appendChild($no->createCDataSection($value));
+                            $xml->createChildElement($tableRecord, $key, $value);
                         }
                     }
                 }
@@ -412,8 +412,16 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
         return $this->btTable;
     }
 
+    /**
+     * @param \Concrete\Core\Page\Page $page
+     * @param string $arHandle
+     * @param \SimpleXMLElement $blockNode
+     *
+     * @return \Concrete\Core\Block\Block
+     */
     public function import($page, $arHandle, \SimpleXMLElement $blockNode)
     {
+        $xml = $this->app->make(Xml::class);
         // handle the adodb stuff
         $args = $this->getImportData($blockNode, $page);
         $blockData = [];
@@ -441,8 +449,8 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
         $this->importAdditionalData($b, $blockNode);
 
         // now we handle container settings
-        $bCustomContainerSettings = (string) $blockNode['custom-container-settings'];
-        if ($bCustomContainerSettings === '0' || $bCustomContainerSettings === '1') {
+        $bCustomContainerSettings = $xml->getBool($blockNode['custom-container-settings'], null);
+        if ($bCustomContainerSettings !== null) {
             $b->setCustomContainerSettings($bCustomContainerSettings);
         }
 
@@ -453,16 +461,21 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
         }
 
         // now we handle block caching
-        $cache = (int) $blockNode['cache-output'];
-        if ($cache) {
-            $b->setCustomCacheSettings(true, $blockNode['cache-output-on-post'], $blockNode['cache-output-for-registered-users'],
-                $blockNode['cache-output-lifetime']);
+        if ($xml->getBool($blockNode['cache-output'])) {
+            $b->setCustomCacheSettings(
+                true,
+                $xml->getBool($blockNode['cache-output-on-post']),
+                $xml->getBool($blockNode['cache-output-for-registered-users']),
+                $xml->getBool($blockNode['cache-output-lifetime'])
+            );
         }
 
         if ($this instanceof FileTrackableInterface) {
             $blockController = $b->getController(); // We have to do this because we need it loaded with the right block object, data.
             $this->app->make(AggregateTracker::class)->track($blockController);
         }
+
+        return $b;
     }
 
     /**
@@ -682,9 +695,10 @@ class BlockController extends \Concrete\Core\Controller\AbstractController
         }
 
         // This block is new for 9.0.2 – we need this because we're passing around blocks with page objects in them
-        // for file trackability, but without this code we lose the reference to the proper collection + collection version
+        // for file trackability, but without this code we lose the reference to the proper collection + collection version.
+        // We ignore blocks on system pages because they are stacks.
         $blockPage = $this->block->getBlockCollectionObject();
-        if ($blockPage) {
+        if ($blockPage && !$blockPage->isSystemPage()) {
             return $blockPage;
         }
 

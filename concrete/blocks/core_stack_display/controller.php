@@ -2,12 +2,16 @@
 
 namespace Concrete\Block\CoreStackDisplay;
 
+use Concrete\Core\Block\Block;
 use Concrete\Core\Block\BlockController;
+use Concrete\Core\Block\Traits\HasSubBlocksTrait;
+use Concrete\Core\Feature\UsesFeatureInterface;
 use Concrete\Core\Multilingual\Page\Section\Section;
 use Concrete\Core\Page\Page;
 use Concrete\Core\Page\Stack\Stack;
 use Concrete\Core\Permission\Checker;
 use Concrete\Core\Statistics\UsageTracker\TrackableInterface;
+use Concrete\Core\Utility\Service\Xml;
 
 /**
  * The controller for the stack display block. This is an internal proxy block that is inserted when a stack's contents are displayed in a page.
@@ -19,8 +23,10 @@ use Concrete\Core\Statistics\UsageTracker\TrackableInterface;
  * @copyright  Copyright (c) 2003-2022 concretecms. (http://www.concretecms.org)
  * @license    http://www.concretecms.org/license/     MIT License
  */
-class Controller extends BlockController implements TrackableInterface
+class Controller extends BlockController implements TrackableInterface, UsesFeatureInterface
 {
+    use HasSubBlocksTrait;
+
     /**
      * @var int|null
      */
@@ -40,11 +46,6 @@ class Controller extends BlockController implements TrackableInterface
      * @var bool
      */
     protected $btIsInternal = true;
-
-    /**
-     * @var bool
-     */
-    protected $btCacheSettingsInitialized = false;
 
     /**
      * @var int|null
@@ -208,10 +209,7 @@ class Controller extends BlockController implements TrackableInterface
     {
         $stack = $this->getStack(false);
         if ($stack !== null) {
-            $cnode = $blockNode->addChild('stack');
-            $node = dom_import_simplexml($cnode);
-            $no = $node->ownerDocument;
-            $node->appendChild($no->createCDataSection($stack->getCollectionName()));
+            $this->app->make(Xml::class)->createChildElement($blockNode, 'stack', $stack->getCollectionName());
         }
     }
 
@@ -354,16 +352,10 @@ class Controller extends BlockController implements TrackableInterface
      */
     protected function setupCacheSettings()
     {
-        if ($this->btCacheSettingsInitialized || Page::getCurrentPage()->isEditMode()) {
+        $page = $this->getCollectionObject();
+        if ($this->isCacheSettingsInitialized() || $page->isEditMode()) {
             return;
         }
-
-        $this->btCacheSettingsInitialized = true;
-
-        //Block cache settings are only as good as the weakest cached item inside. So loop through and check.
-        $btCacheBlockOutput = true;
-        $btCacheBlockOutputOnPost = true;
-        $btCacheBlockOutputLifetime = 0;
 
         $stack = $this->getStack(true);
         if ($stack === null) {
@@ -374,32 +366,14 @@ class Controller extends BlockController implements TrackableInterface
         /** @phpstan-ignore-next-line */
         if ($p->canViewPage()) {
             $blocks = $stack->getBlocks();
-            foreach ($blocks as $b) {
-                if ($b->overrideAreaPermissions()) {
-                    $btCacheBlockOutput = false;
-                    $btCacheBlockOutputOnPost = false;
-                    $btCacheBlockOutputLifetime = 0;
-                    break;
-                }
-
-                $btCacheBlockOutput = $b->cacheBlockOutput();
-
-                $btCacheBlockOutputOnPost = $btCacheBlockOutputOnPost && $b->cacheBlockOutputOnPost();
-
-                //As soon as we find something which cannot be cached, entire block cannot be cached, so stop checking.
-                if (!$btCacheBlockOutput) {
-                    return;
-                }
-
-                $expires = $b->getBlockOutputCacheLifetime();
-                if ($expires && $btCacheBlockOutputLifetime < $expires) {
-                    $btCacheBlockOutputLifetime = $expires;
-                }
-            }
+            $this->initializeSubBlockCacheSettings($page, $blocks);
         }
+    }
 
-        $this->btCacheBlockOutput = $btCacheBlockOutput;
-        $this->btCacheBlockOutputOnPost = $btCacheBlockOutputOnPost;
-        $this->btCacheBlockOutputLifetime = $btCacheBlockOutputLifetime;
+    public function getRequiredFeatures(): array
+    {
+        $this->setupCacheSettings();
+
+        return $this->requiredFeatures;
     }
 }

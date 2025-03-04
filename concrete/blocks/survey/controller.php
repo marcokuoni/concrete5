@@ -34,6 +34,8 @@ class Controller extends BlockController implements UsesFeatureInterface
 
     public $customMessage;
 
+    public $cID;
+
     public $requiresRegistration = false;
     /**
      * Used for localization. If we want to localize the name/description we have to include this.
@@ -166,7 +168,7 @@ class Controller extends BlockController implements UsesFeatureInterface
                 $ip = $iph->getRequestIP();
                 $ip = ($ip === false) ? ('') : ($ip->getIp($ip::FORMAT_IP_STRING));
                 $v = [
-                    $_REQUEST['optionID'],
+                    $this->request->get('optionID'),
                     $this->bID,
                     $duID,
                     $ip,

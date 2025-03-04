@@ -346,11 +346,6 @@ $userEntity = $user->getEntityObject();
                                     </legend>
 
                                     <div class="form-group">
-                                        <?php echo $form->label('uPasswordMine', t('Your Current Password')); ?>
-                                        <password-input name="uPasswordMine"/>
-                                    </div>
-
-                                    <div class="form-group">
                                         <?php echo $form->label('uPasswordNew', t('New Password')); ?>
                                         <password-input name="uPasswordNew" :strength-meter="true"/>
                                     </div>
@@ -359,6 +354,12 @@ $userEntity = $user->getEntityObject();
                                         <?php echo $form->label('uPasswordNewConfirm', t('Confirm New Password')); ?>
                                         <password-input name="uPasswordNewConfirm"/>
                                     </div>
+
+                                    <div class="form-group">
+                                        <?php echo $form->label('uPasswordMine', t('Your Password (for additional security)')); ?>
+                                        <password-input name="uPasswordMine"/>
+                                    </div>
+
                                     <div class="help-block"><?php echo h(t('Leave blank to leave the password unchanged.')); ?></div>
                                 </fieldset>
                             <?php } ?>
@@ -416,7 +417,7 @@ $userEntity = $user->getEntityObject();
                     <div v-if="groups.length === 0" class="mb-3"><?= t('None') ?></div>
 
                     <h4><?= t('Add Group') ?></h4>
-                    <concrete-group-chooser mode="select" @select="addGroup"></concrete-group-chooser>
+                    <concrete-group-chooser mode="select" @select="addGroup" filter="assign"></concrete-group-chooser>
 
                 </div>
                 <div class="modal-footer">

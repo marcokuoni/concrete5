@@ -528,6 +528,7 @@ where treeNodeDisplayOrder > ? and treeNodeParentID = ?',
             $newParent->updateDateModified();
             $this->treeNodeParentID = $newParent->getTreeNodeID();
             $this->treeNodeDisplayOrder = $treeNodeDisplayOrder;
+            $newParent->clearLoadedChildren();
         }
     }
 
@@ -619,7 +620,7 @@ where treeNodeDisplayOrder > ? and treeNodeParentID = ?',
         $xnodes = $sx->children();
         foreach ($xnodes as $xn) {
             $type = NodeType::getByHandle($xn->getName());
-            $class = $type->getTreeNodeTypeClass();
+            $class = app($type->getTreeNodeTypeClass());
             $node = call_user_func_array([$class, 'importNode'], [$xn, $this]);
             call_user_func_array([$node, 'importChildren'], [$xn]);
         }
@@ -656,6 +657,19 @@ where treeNodeDisplayOrder > ? and treeNodeParentID = ?',
             }
             $this->childNodesLoaded = true;
         }
+    }
+
+    /**
+     * Clear the child nodes loaded by populateChildren() / populateDirectChildrenOnly().
+     *
+     * @return $this
+     */
+    public function clearLoadedChildren(): self
+    {
+        $this->childNodesLoaded = false;
+        $this->childNodes = [];
+
+        return $this;
     }
 
     public function delete()
@@ -696,28 +710,40 @@ where treeNodeDisplayOrder > ? and treeNodeParentID = ?',
         $db->executeQuery('delete from TreeNodePermissionAssignments where treeNodeID = ?', [$this->treeNodeID]);
     }
 
+    /**
+     * @param int|mixed $treeNodeID
+     *
+     * @return \Concrete\Core\Tree\Node\Node|null
+     */
     public static function getByID($treeNodeID)
     {
-        $app = Facade::getFacadeApplication();
-        $db = app(Connection::class);
-        $cache = $app->make('cache/request');
-        $item = $cache->getItem(sprintf('tree/node/%s', $treeNodeID));
-        if (!$item->isMiss()) {
-            return $item->get();
-        } else {
-            $node = null;
-            $row = $db->fetchAssoc('select * from TreeNodes where treeNodeID = ?', [$treeNodeID]);
-            if ($row && $row['treeNodeID']) {
-                $tt = TreeNodeType::getByID($row['treeNodeTypeID']);
-                $node = app($tt->getTreeNodeTypeClass());
-                $row['treeNodeTypeHandle'] = $tt->getTreeNodeTypeHandle();
-                $node->setPropertiesFromArray($row);
-                $node->loadDetails();
-            }
-            $cache->save($item->set($node));
-
-            return $node;
+        $treeNodeID = (int) $treeNodeID;
+        if ($treeNodeID === 0) {
+            return null;
         }
+        $app = app();
+        $cache = $app->make('cache/request');
+        if ($cache->isEnabled()) {
+            $item = $cache->getItem(sprintf('tree/node/%s', $treeNodeID));
+            if ($item->isHit()) {
+                return $item->get();
+            }
+        }
+        $db = $app->make(Connection::class);
+        $row = $db->fetchAssociative('select * from TreeNodes where treeNodeID = ?', [$treeNodeID]);
+        if ($row === false) {
+            return null;
+        }
+        $tt = TreeNodeType::getByID($row['treeNodeTypeID']);
+        $node = $app->make($tt->getTreeNodeTypeClass());
+        $row['treeNodeTypeHandle'] = $tt->getTreeNodeTypeHandle();
+        $node->setPropertiesFromArray($row);
+        $node->loadDetails();
+        if (isset($item)) {
+            $cache->save($item->set($node));
+        }
+        
+        return $node;
     }
 
     /**
@@ -738,15 +764,22 @@ where treeNodeDisplayOrder > ? and treeNodeParentID = ?',
         }
     }
 
-    public static function getNodeByName($name)
+    public static function getNodeByName($name, $parentId = null)
     {
         $db = app(Connection::class);
         $treeNodeTypeHandle = uncamelcase(strrchr(get_called_class(), '\\'));
         $type = TreeNodeType::getByHandle($treeNodeTypeHandle);
-        $treeNodeID = $db->fetchColumn(
-            'select treeNodeID from TreeNodes where treeNodeName = ? and treeNodeTypeID = ?',
-            [$name, $type->getTreeNodeTypeID()]
-        );
+        if ($parentId) {
+            $treeNodeID = $db->fetchColumn(
+                'select treeNodeID from TreeNodes where treeNodeName = ? and treeNodeTypeID = ? and treeNodeParentId = ?',
+                [$name, $type->getTreeNodeTypeID(), $parentId]
+            );
+        } else {
+            $treeNodeID = $db->fetchColumn(
+                'select treeNodeID from TreeNodes where treeNodeName = ? and treeNodeTypeID = ?',
+                [$name, $type->getTreeNodeTypeID()]
+            );
+        }
         if ($treeNodeID) {
             return static::getByID($treeNodeID);
         }

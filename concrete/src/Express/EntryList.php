@@ -153,8 +153,7 @@ class EntryList extends DatabaseItemList implements PagerProviderInterface, Pagi
 
     public function checkPermissions($mixed)
     {
-
-        if ($this->permissionsChecker != null) {
+        if ($this->permissionsChecker !== null) {
             if ($this->permissionsChecker === -1) {
                 return true;
             } else {
@@ -166,7 +165,7 @@ class EntryList extends DatabaseItemList implements PagerProviderInterface, Pagi
         return $fp->canViewExpressEntry();
     }
 
-    public function setPermissionsChecker(\Closure $checker = null)
+    public function setPermissionsChecker(?\Closure $checker = null)
     {
         $this->permissionsChecker = $checker;
     }
@@ -178,7 +177,7 @@ class EntryList extends DatabaseItemList implements PagerProviderInterface, Pagi
 
     public function enablePermissions()
     {
-        unset($this->permissionsChecker);
+        $this->permissionsChecker = null;
     }
 
     public function ignorePermissions()
